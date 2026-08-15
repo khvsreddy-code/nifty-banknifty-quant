@@ -14,7 +14,7 @@ from urllib.parse import quote
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(page_title="Nifty / Bank Nifty OI Pulse Pro", page_icon="⚡", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="TradingCore Indices Dashboard", page_icon="⚡", layout="wide", initial_sidebar_state="expanded")
 st.markdown("""
 <style>
 .stApp{background:#f4f7fb}.block-container{max-width:1500px;padding-top:1.1rem;padding-bottom:3rem}
