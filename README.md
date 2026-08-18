@@ -1,0 +1,136 @@
+# NIFTY / BANK NIFTY Intraday OI Terminal V3
+
+A Streamlit intraday decision-support dashboard built around Upstox option-chain and market-data APIs.
+
+## What V3 adds
+
+- Dynamic EOS / EOR / EOS-1 / EOR+1 map
+- CE/PE OI, day ΔOI and session 5m/15m OI shifts
+- OI acceleration and migration
+- Writing / long buildup / short covering / unwinding inference
+- Level strength, health, survival and reaction tracking
+- OI pressure heatmap
+- ATM pressure
+- PCR and PCR direction
+- Max-pain reference
+- 25-delta IV skew proxy
+- ATM IV and straddle-implied move proxy
+- Option bid/ask and liquidity/spread context
+- Option gamma concentration proxy
+- Session VWAP
+- 5m / 15m momentum
+- Opening-range high/low
+- Session high/low
+- Best-effort previous-day high/low/close
+- India VIX context
+- NIFTY vs BANK NIFTY relative strength
+- Constituent stock contribution: pushing vs dragging the index
+- Breadth / narrow-vs-broad move classification
+- Three scenario states with trigger, confirmation, target and invalidation
+- Market phase classification
+- Data-quality score
+- "What changed since the last pulse"
+- Full readable option chain
+- CSV snapshot download
+- Session signal journal / validation panel
+
+## Important modeling notes
+
+EOS/EOR are an independent, transparent OI/LTP model. They do not reproduce a third-party proprietary formula.
+
+The dashboard deliberately distinguishes:
+
+- **Scenario weights** from historical win probabilities.
+- **Gross gamma concentration** from dealer GEX. OI alone does not reveal whether each participant is long or short.
+- **ATM straddle movement** from a guaranteed forecast.
+- **Reference constituent weights** from current official index weights.
+
+For exact index contribution calculations, upload a current official weight CSV:
+
+```text
+symbol,weight_pct
+HDFCBANK,10.73
+RELIANCE,8.78
+ICICIBANK,8.21
+...
+```
+
+## Upstox secret
+
+In Streamlit Cloud Secrets:
+
+```toml
+UPSTOX_ACCESS_TOKEN = "your_access_token"
+```
+
+## Live refresh
+
+V3 uses stable REST polling by default. Upstox V3 also provides a WebSocket market-data feed with live LTP, OI, option Greeks and depth; that is the natural next transport upgrade once the model has been validated in production. The current design keeps the calculation layer independent from the transport layer.
+
+## Validation
+
+Do not treat model percentages as guaranteed accuracy. Use the session journal and, where your Upstox access permits it, historical/expired derivative data to measure:
+
+- hit rate
+- average favorable excursion (MFE)
+- average adverse excursion (MAE)
+- expectancy after costs
+- false-break rate
+- level reaction rate
+- performance by market phase and expiry day
+
+This project is decision-support software, not a guarantee of profit or a substitute for risk management.
+
+
+### Trader-first UI
+The live dashboard is organized for a 10-second read: market state, current bias, reasons, EOS/EOR levels, next-move trigger/target/invalidation, recent OI changes, and a compact OI battlefield. Raw quantitative diagnostics remain available under expandable sections.
+
+
+## V6 UI
+The V6 build is a presentation upgrade for intraday NIFTY/BANK NIFTY traders. It keeps
+the existing analytics engine but prioritizes a 10-second decision board, key levels,
+next-move conditions, OI battlefield, index drivers, and context metrics. Raw chain and
+diagnostics remain available under Quant Details.
+
+
+## V8 additions
+
+- Dynamic NSE/BSE index universe via Upstox instrument data.
+- Searchable index selector with automatic capability detection.
+- Full OI terminal when option-chain data is available; safe index-only view otherwise.
+- New last-refresh change cards and nearest-level proximity cards.
+- OI Battlefield/heatmap presentation is intentionally unchanged.
+
+
+## Supabase one-minute recorder
+
+This build reads `SUPABASE_URL` and `SUPABASE_KEY` from Streamlit Secrets and
+persists one snapshot per minute during the NSE session (09:15–15:30 IST).
+It stores the complete option chain plus the exact level/prediction state used
+by the live engine. The dashboard continues to work if Supabase is unavailable.
+
+Before deployment, run `SUPABASE_MIGRATION.sql` once in the Supabase SQL Editor.
+
+
+## Full Upstox field capture
+This build extends the recorder to persist common option quote fields when
+the current option-chain dataframe exposes them: LTP/change, OI/change OI,
+volume, bid/ask, bid/ask quantity, IV and Greeks. It also persists additional
+index/futures fields when available. Missing fields are stored as NULL.
+Run `SUPABASE_FULL_CAPTURE_MIGRATION.sql` once in Supabase SQL Editor.
+
+
+## V9.2 live chart / Supabase archive
+Run `SUPABASE_FULL_CAPTURE_MIGRATION.sql` once. It now also creates `live_ticks` and `price_candles` and enables Realtime for the live chart bridge.
+
+The chart uses the persistent Upstox V3 WebSocket when available. Streamlit analytics continue to pulse separately; the chart iframe is deliberately kept mounted so it does not visibly reset every few seconds. Today's complete 1-minute index price history can be archived from the sidebar and is also attempted automatically after the cash session. OI/option-chain history is only available for periods that were actually captured by the recorder; Upstox cannot retroactively reconstruct every historical intraday option-chain state from a live app that was not running.
+
+
+## V9.3 live chart architecture
+
+The chart is mounted outside the Streamlit `st.fragment` analytics pulse. The Upstox V3 websocket runs as a process-level cached resource and writes at most one `live_ticks` row per second per tracked index. The browser subscribes directly to Supabase Realtime and polls the latest row once per second as a fallback. This means the candle can move without Streamlit rebuilding the page.
+
+Run `SUPABASE_FULL_CAPTURE_MIGRATION.sql` once if `live_ticks` and `price_candles` do not already exist. The `live_ticks` table must be enabled in `supabase_realtime` (the supplied migration does this).
+
+### V11.5 live chart behavior
+The chart is a single Lightweight Charts candle series. Upstox V3 historical candles are stitched across multiple bounded history windows, then the current live LTP updates that same candle with `series.update()` inside the browser. No Streamlit timer/rerun is used for live chart movement. Supabase Realtime remains optional; direct Upstox V3 LTP polling is the fallback transport.
